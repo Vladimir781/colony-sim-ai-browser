@@ -73,6 +73,11 @@ class InlineWorker {
     clearInterval(this.timer);
   }
 
+  terminate() {
+    this.stopLoop();
+    this.listeners.clear();
+  }
+
   async handleMessage(message) {
     const { type, payload } = message;
     switch (type) {
@@ -167,18 +172,59 @@ class InlineWorker {
   }
 }
 
-async function createSimulationWorker() {
-  const canUseModuleWorker =
-    typeof Worker === 'function' && typeof import.meta !== 'undefined' &&
-    import.meta && typeof import.meta.url === 'string' &&
-    import.meta.url.startsWith('http');
-  if (canUseModuleWorker) {
-    try {
-      return new Worker(new URL('./worker/worker.entry.js', import.meta.url), { type: 'module' });
-    } catch (error) {
-      console.warn('Не удалось создать модульный воркер, используем фолбэк', error);
-    }
+function createBlobWorker(scriptUrl) {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined') return null;
+  const blob = new Blob([`import "${scriptUrl}";`], { type: 'application/javascript' });
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const worker = new Worker(objectUrl, { type: 'module' });
+    const cleanup = () => {
+      try {
+        URL.revokeObjectURL(objectUrl);
+      } catch (revokeError) {
+        console.warn('Не удалось освободить URL воркера', revokeError);
+      }
+    };
+    worker.addEventListener('message', cleanup, { once: true });
+    worker.addEventListener('error', cleanup, { once: true });
+    return worker;
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl);
+    throw error;
   }
+}
+
+async function createSimulationWorker() {
+  if (typeof Worker !== 'function') {
+    console.warn('API WebWorker недоступно, используем фолбэк на главный поток');
+    return new InlineWorker();
+  }
+
+  try {
+    return new Worker('./game/worker/worker.entry.js', { type: 'module' });
+  } catch (error) {
+    console.warn('Не удалось создать модульный воркер по относительному пути', error);
+  }
+
+  try {
+    const baseUrl =
+      typeof window !== 'undefined'
+        ? window.location.href
+        : typeof document !== 'undefined'
+        ? document.baseURI
+        : null;
+    if (!baseUrl) throw new Error('Не удалось определить базовый URL для Blob-воркера');
+    const scriptUrl = new URL('./game/worker/worker.entry.js', baseUrl).href;
+    const worker = createBlobWorker(scriptUrl);
+    if (worker) {
+      console.info('Используется Blob-воркер для симуляции');
+      return worker;
+    }
+  } catch (error) {
+    console.warn('Не удалось создать Blob-воркер, используем inline режим', error);
+  }
+
+  console.warn('Возвращаем inline-воркер в качестве крайнего фолбэка');
   return new InlineWorker();
 }
 
