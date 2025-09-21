@@ -13,6 +13,17 @@ body {
   background: radial-gradient(circle at top, #1b2738, #0d111b 60%);
 }
 
+.runtime-warning {
+  margin: 0;
+  padding: 1rem 1.5rem;
+  text-align: center;
+  background: linear-gradient(135deg, #61313a, #9a3d3d);
+  color: #fff4f4;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
 main {
   flex: 1;
   display: flex;

@@ -6,17 +6,6 @@
     <title>Колония в браузере</title>
     <link rel="stylesheet" href="./game/styles/main.css" />
     <link rel="stylesheet" href="./game/styles/panel.css" />
-    <script>
-      if (!HTMLScriptElement.supports || !HTMLScriptElement.supports('importmap')) {
-        document.addEventListener('DOMContentLoaded', () => {
-          const warning = document.createElement('div');
-          warning.className = 'importmap-warning';
-          warning.textContent =
-            'Ваш браузер не поддерживает import maps. Пожалуйста, обновите браузер до последней версии.';
-          document.body.prepend(warning);
-        });
-      }
-    </script>
     <script type="importmap" src="./importmap.generated.json"></script>
   </head>
   <body>
@@ -25,7 +14,46 @@
       <div id="panel-root"></div>
     </main>
     <script type="module">
-      import 'main.js';
+      const showRuntimeWarning = (message) => {
+        const warning = document.createElement('div');
+        warning.className = 'runtime-warning';
+        warning.textContent = message;
+        document.body.prepend(warning);
+      };
+
+      const supportsImportMap = Boolean(HTMLScriptElement.supports?.('importmap'));
+      if (!supportsImportMap) {
+        showRuntimeWarning(
+          'Ваш браузер не поддерживает import maps. Попробуйте обновить браузер или используйте локальный сервер.',
+        );
+      }
+
+      const loadGame = async () => {
+        if (supportsImportMap) {
+          try {
+            await import('main.js');
+            return;
+          } catch (error) {
+            console.warn('Не удалось загрузить модуль через import map, используется запасной вариант', error);
+          }
+        }
+
+        if (window.location.protocol === 'file:') {
+          showRuntimeWarning(
+            'Откройте проект через локальный веб-сервер (например, npx serve), иначе браузер блокирует модули по CORS.',
+          );
+          return;
+        }
+
+        try {
+          await import('./game/main.js');
+        } catch (error) {
+          console.error('Не удалось загрузить основной модуль игры', error);
+          showRuntimeWarning('Не удалось загрузить игру. Проверьте консоль разработчика для подробностей.');
+        }
+      };
+
+      loadGame();
     </script>
   </body>
 </html>
