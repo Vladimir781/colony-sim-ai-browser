@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Колония в браузере</title>
+    <link rel="stylesheet" href="./game/styles/main.css" />
+    <link rel="stylesheet" href="./game/styles/panel.css" />
+    <script>
+      if (!HTMLScriptElement.supports || !HTMLScriptElement.supports('importmap')) {
+        document.addEventListener('DOMContentLoaded', () => {
+          const warning = document.createElement('div');
+          warning.className = 'importmap-warning';
+          warning.textContent =
+            'Ваш браузер не поддерживает import maps. Пожалуйста, обновите браузер до последней версии.';
+          document.body.prepend(warning);
+        });
+      }
+    </script>
+    <script type="importmap" src="./importmap.generated.json"></script>
+  </head>
+  <body>
+    <main>
+      <div id="game-root"></div>
+      <div id="panel-root"></div>
+    </main>
+    <script type="module">
+      import 'main.js';
+    </script>
+  </body>
+</html>
