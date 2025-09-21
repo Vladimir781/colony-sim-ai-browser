@@ -1,0 +1,81 @@
+.control-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(420px, 90vw);
+  height: 100vh;
+  background: rgba(9, 14, 22, 0.95);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  padding-top: 4.5rem;
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+.control-panel.panel-open {
+  transform: translateX(0);
+}
+
+.panel-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 1rem;
+  flex-wrap: wrap;
+}
+
+.panel-tab {
+  flex: 1;
+  min-width: 100px;
+  text-align: center;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+}
+
+.panel-tab[aria-selected='true'] {
+  background: rgba(95, 155, 255, 0.2);
+  border-color: rgba(95, 155, 255, 0.5);
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.tab-panel {
+  display: block;
+}
+
+.tab-panel[hidden] {
+  display: none;
+}
+
+.tab-agents table {
+  margin-top: 0.5rem;
+}
+
+.tab-settings label {
+  display: block;
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.tab-settings input,
+.tab-settings select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(20, 28, 40, 0.6);
+  color: inherit;
+}
+
+.tab-help button {
+  flex-shrink: 0;
+}
