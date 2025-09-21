@@ -168,18 +168,6 @@ class InlineWorker {
 }
 
 async function createSimulationWorker() {
-  const canUseModuleWorker =
-    typeof Worker === 'function' && typeof import.meta !== 'undefined' &&
-    import.meta && typeof import.meta.url === 'string' &&
-    import.meta.url.startsWith('http');
-  if (canUseModuleWorker) {
-    try {
-      return new Worker(new URL('./worker/worker.entry.js', import.meta.url), { type: 'module' });
-    } catch (error) {
-      console.warn('Не удалось создать модульный воркер, используем фолбэк', error);
-    }
-  }
-  return new InlineWorker();
 }
 
 const renderApp = new PixiApp({ containerId: 'game-root' });
