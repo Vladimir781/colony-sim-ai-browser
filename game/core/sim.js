@@ -9,7 +9,12 @@ import {
   DEFAULT_AGENT_TRAITS,
 } from '../data/constants.js';
 import { BASE_CONFIG } from '../data/config.js';
-import { createTinyMLPFromBytes } from '../ai/models/tiny_mlp.js';
+import {
+  createTinyMLPFromBytes,
+  createTinyMLPWide,
+  createTinyMLPDeep,
+  createTinyMLPRandom,
+} from '../ai/models/tiny_mlp.js';
 import { TinyGRU } from '../ai/models/tiny_gru.js';
 import { BRAIN_DEFAULT } from '../ai/brains/brain.default.u8arr.js';
 import { ReinforceLearner } from '../ai/learn/reinforce.js';
@@ -26,11 +31,16 @@ function sampleFrom(probs, rand = Math.random) {
 
 function createBrain(model) {
   switch (model) {
+    case 'tiny-mlp-wide':
+      return createTinyMLPWide();
+    case 'tiny-mlp-deep':
+      return createTinyMLPDeep();
     case 'tiny-gru':
       return new TinyGRU({ weights: new Float32Array(BRAIN_DEFAULT) });
     case 'tiny-mlp':
-    default:
       return createTinyMLPFromBytes(BRAIN_DEFAULT);
+    default:
+      return createTinyMLPRandom();
   }
 }
 
@@ -40,6 +50,26 @@ function makeTraits(index) {
   if (index % 3 === 0) traits.push('curious');
   if (index % 5 === 0) traits.push('resilient');
   return traits;
+}
+
+function createTrainingState() {
+  return {
+    steps: 0,
+    totalReward: 0,
+    avgReward: 0,
+    lastReward: 0,
+    lastAction: 'idle',
+    lastBaseline: 0,
+    lastAdvantage: 0,
+    updates: 0,
+    lastUpdateMs: 0,
+    lastBatchReward: 0,
+    lastBatchSize: 0,
+    lastGradientRms: 0,
+    bufferSize: 0,
+    recentRewards: [],
+    recentReturns: [],
+  };
 }
 
 const ACTION_INDEX = ACTIONS.reduce((acc, action, index) => {
@@ -85,8 +115,15 @@ export class Simulation {
     this.metrics = {
       avgEnergy: 1,
       avgSatiety: 1,
+      avgReward: 0,
       lastEvent: null,
       trainingTime: 0,
+      lastTrainingMs: 0,
+      lastBatchReward: 0,
+      lastBatchSize: 0,
+      lastGradientRms: 0,
+      totalUpdates: 0,
+      bufferSize: 0,
       predatorCount: 0,
       herbivoreCount: 0,
       structureCount: 0,
@@ -118,6 +155,8 @@ export class Simulation {
         role: 'colonist',
         traits: makeTraits(i),
         brain,
+        brainModel: this.config.brains.model,
+        training: createTrainingState(),
         rewards: [],
         lastAction: 0,
         lastSymbol: 0,
@@ -578,9 +617,17 @@ export class Simulation {
     const start = performance.now();
     const returns = this.learner.computeReturns(agent.memory.map((m) => m.reward));
     const gradients = [];
+    let sumReturns = 0;
+    let sumAdvantage = 0;
+    let sumBaseline = 0;
+    let gradSq = 0;
+    let gradCount = 0;
     for (let i = 0; i < agent.memory.length; i += 1) {
       const exp = agent.memory[i];
       const advantage = returns[i] - exp.baseline;
+      sumReturns += returns[i];
+      sumAdvantage += advantage;
+      sumBaseline += exp.baseline;
       const grad = agent.brain.computeGradients({
         actionIndex: exp.actionIndex,
         symbolIndex: exp.symbolIndex,
@@ -588,10 +635,42 @@ export class Simulation {
         targetValue: returns[i],
       });
       gradients.push(grad);
+      for (let j = 0; j < grad.length; j += 1) {
+        const value = grad[j];
+        gradSq += value * value;
+        gradCount += 1;
+      }
     }
-    this.learner.update(agent.brain.params ?? agent.brain.serialize(), gradients);
+    const weights = agent.brain.params ?? agent.brain.serialize();
+    this.learner.update(weights, gradients);
+    const duration = performance.now() - start;
     agent.memory = [];
-    this.metrics.trainingTime += performance.now() - start;
+    const batchCount = returns.length;
+    const batchReward = batchCount ? sumReturns / batchCount : 0;
+    const avgAdvantage = batchCount ? sumAdvantage / batchCount : 0;
+    const avgBaseline = batchCount ? sumBaseline / batchCount : 0;
+    const gradientRms = gradCount ? Math.sqrt(gradSq / gradCount) : 0;
+    if (agent.training) {
+      const training = agent.training;
+      training.updates += 1;
+      training.lastUpdateMs = duration;
+      training.lastBatchReward = batchReward;
+      training.lastBatchSize = batchCount;
+      training.lastAdvantage = avgAdvantage;
+      training.lastBaseline = avgBaseline;
+      training.lastGradientRms = gradientRms;
+      training.bufferSize = 0;
+      if (!training.recentReturns) training.recentReturns = [];
+      if (batchCount) {
+        training.recentReturns.push(batchReward);
+        if (training.recentReturns.length > 20) training.recentReturns.shift();
+      }
+    }
+    this.metrics.trainingTime += duration;
+    this.metrics.lastTrainingMs = duration;
+    this.metrics.lastBatchReward = batchReward;
+    this.metrics.lastBatchSize = batchCount;
+    this.metrics.lastGradientRms = gradientRms;
   }
 
   step() {
@@ -640,6 +719,20 @@ export class Simulation {
         reward: totalReward,
         baseline,
       });
+      if (agent.training) {
+        const training = agent.training;
+        training.steps += 1;
+        training.totalReward += totalReward;
+        training.avgReward = training.totalReward / training.steps;
+        training.lastReward = totalReward;
+        training.lastAction = ACTIONS[actionIndex] ?? 'idle';
+        training.lastBaseline = baseline;
+        training.lastAdvantage = totalReward - baseline;
+        training.bufferSize = agent.memory.length;
+        if (!training.recentRewards) training.recentRewards = [];
+        training.recentRewards.push(totalReward);
+        if (training.recentRewards.length > 30) training.recentRewards.shift();
+      }
       if (this.tick % this.config.brains.updateFrequency === 0) {
         this.learn(agent);
       }
@@ -652,8 +745,21 @@ export class Simulation {
     if (event) {
       this.metrics.lastEvent = event;
     }
-    this.metrics.avgEnergy = energySum / this.agents.length;
-    this.metrics.avgSatiety = satietySum / this.agents.length;
+    const agentCount = this.agents.length || 1;
+    this.metrics.avgEnergy = energySum / agentCount;
+    this.metrics.avgSatiety = satietySum / agentCount;
+    this.metrics.avgReward = this.agents.reduce(
+      (sum, current) => sum + (current.training?.avgReward ?? 0),
+      0,
+    ) / agentCount;
+    this.metrics.totalUpdates = this.agents.reduce(
+      (sum, current) => sum + (current.training?.updates ?? 0),
+      0,
+    );
+    this.metrics.bufferSize = this.agents.reduce(
+      (sum, current) => sum + (current.training?.bufferSize ?? 0),
+      0,
+    );
     this.metrics.predatorCount = this.predators.length;
     this.metrics.herbivoreCount = this.herbivores.length;
     this.metrics.structureCount = this.world.structures.length;
@@ -675,6 +781,10 @@ export class Simulation {
     this.config.brains.model = model;
     for (const agent of this.agents) {
       agent.brain = createBrain(model);
+      agent.brainModel = model;
+      agent.memory = [];
+      agent.rewards = [];
+      agent.training = createTrainingState();
     }
   }
 
@@ -701,6 +811,27 @@ export class Simulation {
         lastSymbol: agent.lastSymbol,
         inventory: agent.inventory,
         useFSM: agent.useFSM,
+        brainModel: agent.brainModel ?? this.config.brains.model,
+        training: agent.training
+          ? {
+              steps: agent.training.steps,
+              totalReward: agent.training.totalReward,
+              avgReward: agent.training.avgReward,
+              lastReward: agent.training.lastReward,
+              lastAction: agent.training.lastAction,
+              lastBaseline: agent.training.lastBaseline,
+              lastAdvantage: agent.training.lastAdvantage,
+              updates: agent.training.updates,
+              lastUpdateMs: agent.training.lastUpdateMs,
+              lastBatchReward: agent.training.lastBatchReward,
+              lastBatchSize: agent.training.lastBatchSize,
+              lastGradientRms: agent.training.lastGradientRms,
+              bufferSize: agent.training.bufferSize,
+              recentRewards: [...agent.training.recentRewards],
+              recentReturns: [...agent.training.recentReturns],
+            }
+          : null,
+        brain: this.describeBrain(agent.brain, agent.brainModel ?? this.config.brains.model),
       })),
       fauna: {
         predators: this.predators.map((predator) => ({
@@ -733,9 +864,62 @@ export class Simulation {
         avgEnergy: this.metrics.avgEnergy,
         avgSatiety: this.metrics.avgSatiety,
         trainingTime: this.metrics.trainingTime,
+        avgReward: this.metrics.avgReward,
+        totalUpdates: this.metrics.totalUpdates,
+        lastTrainingMs: this.metrics.lastTrainingMs,
+        lastBatchReward: this.metrics.lastBatchReward,
+        lastBatchSize: this.metrics.lastBatchSize,
+        lastGradientRms: this.metrics.lastGradientRms,
+        bufferSize: this.metrics.bufferSize,
         predatorCount: this.metrics.predatorCount,
         herbivoreCount: this.metrics.herbivoreCount,
         structureCount: this.metrics.structureCount,
+      },
+    };
+  }
+
+  describeBrain(brain, model) {
+    if (!brain || typeof brain.serialize !== 'function') {
+      return {
+        model,
+        size: 0,
+        preview: [],
+        stats: { min: 0, max: 0, mean: 0, std: 0 },
+      };
+    }
+    const weights = brain.serialize();
+    const size = weights.length;
+    if (!size) {
+      return {
+        model,
+        size: 0,
+        preview: [],
+        stats: { min: 0, max: 0, mean: 0, std: 0 },
+      };
+    }
+    const previewCount = Math.min(24, size);
+    let min = Infinity;
+    let max = -Infinity;
+    let sum = 0;
+    let sumSq = 0;
+    for (let i = 0; i < size; i += 1) {
+      const value = weights[i];
+      if (value < min) min = value;
+      if (value > max) max = value;
+      sum += value;
+      sumSq += value * value;
+    }
+    const mean = sum / size;
+    const variance = Math.max(0, sumSq / size - mean * mean);
+    return {
+      model,
+      size,
+      preview: Array.from(weights.slice(0, previewCount)),
+      stats: {
+        min,
+        max,
+        mean,
+        std: Math.sqrt(variance),
       },
     };
   }

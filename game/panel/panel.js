@@ -1,5 +1,6 @@
 import { createOverviewTab } from './tabs/overview.js';
 import { createAgentsTab } from './tabs/agents.js';
+import { createTrainingTab } from './tabs/training.js';
 import { createWorldTab } from './tabs/world.js';
 import { createCommsTab } from './tabs/comms.js';
 import { createEventsTab } from './tabs/events.js';
@@ -10,6 +11,7 @@ import { createHelpTab } from './tabs/help.js';
 const TABS = [
   { id: 'overview', title: 'Обзор', factory: createOverviewTab },
   { id: 'agents', title: 'Агенты', factory: createAgentsTab },
+  { id: 'training', title: 'Обучение', factory: createTrainingTab },
   { id: 'world', title: 'Мир', factory: createWorldTab },
   { id: 'comms', title: 'Коммуникация', factory: createCommsTab },
   { id: 'events', title: 'События', factory: createEventsTab },
