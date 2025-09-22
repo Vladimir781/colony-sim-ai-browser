@@ -158,6 +158,245 @@
   gap: 0.5rem;
 }
 
+.tab-settings .settings-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.tab-settings .settings-field--slider input[type='range'] {
+  flex: 1;
+}
+
+.tab-settings .settings-field--number input[type='number'] {
+  width: 6rem;
+}
+
+.tab-settings .settings-field__value {
+  min-width: 3.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.tab-progression {
+  display: grid;
+  gap: 1rem;
+}
+
+.progression-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.2rem;
+  border-radius: 0.75rem;
+  background: rgba(16, 24, 36, 0.75);
+  border: 1px solid rgba(95, 155, 255, 0.12);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.progression-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.progression-level {
+  margin: 0;
+  font-weight: 600;
+  color: #6fa8ff;
+}
+
+.progression-summary-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.progression-summary-grid div {
+  background: rgba(15, 22, 35, 0.65);
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.progression-summary-grid dt {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+}
+
+.progression-summary-grid dd {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.challenge-body[data-empty='true'] {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.challenge-head h4 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.challenge-head p {
+  margin: 0.25rem 0 0;
+  opacity: 0.85;
+  font-size: 0.85rem;
+}
+
+.challenge-progress {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.challenge-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #4fc3ff, #8be9ff);
+}
+
+.challenge-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.achievement-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.achievement {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(95, 155, 255, 0.15);
+  background: rgba(14, 20, 32, 0.68);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.achievement[data-unlocked='true'] {
+  border-color: rgba(117, 214, 150, 0.4);
+  box-shadow: 0 0 18px rgba(117, 214, 150, 0.18);
+}
+
+.achievement__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.achievement__title {
+  font-weight: 600;
+}
+
+.achievement__points {
+  font-size: 0.85rem;
+  color: #8be9ff;
+}
+
+.achievement__description {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.achievement__progress {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.achievement__progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #5f9bff, #a8bfff);
+}
+
+.achievement[data-unlocked='true'] .achievement__progress span {
+  background: linear-gradient(90deg, #76f0b4, #9ff6d1);
+}
+
+.achievement__status {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.achievement-empty {
+  margin: 0;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.progression-log {
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.progression-log__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  background: rgba(12, 18, 30, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.progression-log__item[data-type='achievement'] {
+  border-color: rgba(117, 214, 150, 0.35);
+}
+
+.progression-log__item[data-type='challenge'] {
+  border-color: rgba(95, 155, 255, 0.35);
+}
+
+.progression-log__item--new {
+  animation: progressionPulse 1.6s ease-out;
+}
+
+.progression-log__item--empty {
+  opacity: 0.65;
+  font-style: italic;
+}
+
+.progression-log__message {
+  font-weight: 500;
+}
+
+.progression-log__meta {
+  font-size: 0.75rem;
+  opacity: 0.72;
+}
+
+@keyframes progressionPulse {
+  0% {
+    box-shadow: 0 0 0 rgba(95, 155, 255, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(95, 155, 255, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(95, 155, 255, 0);
+  }
+}
+
 .tab-training .weight-bar {
   position: relative;
   flex: 1;

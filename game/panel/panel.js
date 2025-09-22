@@ -7,9 +7,11 @@ import { createEventsTab } from './tabs/events.js';
 import { createSavesTab } from './tabs/saves.js';
 import { createSettingsTab } from './tabs/settings.js';
 import { createHelpTab } from './tabs/help.js';
+import { createProgressionTab } from './tabs/progression.js';
 
 const TABS = [
   { id: 'overview', title: 'Обзор', factory: createOverviewTab },
+  { id: 'progression', title: 'Прогресс', factory: createProgressionTab },
   { id: 'agents', title: 'Агенты', factory: createAgentsTab },
   { id: 'training', title: 'Обучение', factory: createTrainingTab },
   { id: 'world', title: 'Мир', factory: createWorldTab },

@@ -96,6 +96,13 @@ class InlineWorker {
         if ('thinkEvery' in payload) this.simulation.setThinkEvery(payload.thinkEvery);
         if ('allowLearning' in payload) this.simulation.setLearningEnabled(payload.allowLearning);
         if ('brainModel' in payload) this.simulation.setBrainModel(payload.brainModel);
+        if (
+          'explorationEpsilon' in payload ||
+          'instinctWeight' in payload ||
+          'memoryWindow' in payload
+        ) {
+          this.simulation.updateBrainTuning(payload);
+        }
         if ('tickRate' in payload) {
           this.tickInterval = 1000 / payload.tickRate;
           if (this.running) {
@@ -220,6 +227,19 @@ const latestState = {
     predatorCount: 0,
     herbivoreCount: 0,
     structureCount: 0,
+  },
+  progression: {
+    level: 1,
+    score: 0,
+    effectiveScore: 0,
+    multiplier: 1,
+    mood: 0,
+    unlockedCount: 0,
+    stats: {},
+    achievements: [],
+    dailyChallenge: null,
+    history: [],
+    notifications: [],
   },
   config: BASE_CONFIG,
   isRunning: false,
