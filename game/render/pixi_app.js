@@ -61,6 +61,37 @@ export class PixiApp {
       ctx.fillRect(tile.x * TILE_SIZE, tile.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
     }
     drawGrid(ctx, world);
+    for (const structure of this.state.structures ?? []) {
+      const x = structure.x * TILE_SIZE;
+      const y = structure.y * TILE_SIZE;
+      ctx.fillStyle = 'rgba(90, 140, 200, 0.8)';
+      ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillRect(x + 2, y + TILE_SIZE - 3, (TILE_SIZE - 4) * Math.max(0, Math.min(1, structure.durability ?? 0)), 2);
+    }
+    for (const herbivore of this.state.fauna?.herbivores ?? []) {
+      ctx.fillStyle = '#f9e79f';
+      ctx.beginPath();
+      ctx.arc(
+        herbivore.x * TILE_SIZE + TILE_SIZE / 2,
+        herbivore.y * TILE_SIZE + TILE_SIZE / 2,
+        TILE_SIZE / 4,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+    for (const predator of this.state.fauna?.predators ?? []) {
+      const cx = predator.x * TILE_SIZE + TILE_SIZE / 2;
+      const cy = predator.y * TILE_SIZE + TILE_SIZE / 2;
+      ctx.fillStyle = '#e74c3c';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - TILE_SIZE / 3);
+      ctx.lineTo(cx + TILE_SIZE / 3, cy + TILE_SIZE / 3);
+      ctx.lineTo(cx - TILE_SIZE / 3, cy + TILE_SIZE / 3);
+      ctx.closePath();
+      ctx.fill();
+    }
     for (const agent of agents) {
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.beginPath();

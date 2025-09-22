@@ -12,12 +12,17 @@ export function createDefaultMap({ width, height, seed }) {
       if (r > 0.85) type = 'water';
       else if (r > 0.6) type = 'forest';
       else if (r < 0.1) type = 'mountain';
+      const baseResources =
+        type === 'forest' ? 4 : type === 'mountain' ? 2 : type === 'water' ? 1 : 3;
+      const baseDanger = type === 'water' ? 2 : type === 'mountain' ? 1 : type === 'forest' ? 0.4 : 0.2;
       tiles[y * width + x] = {
         x,
         y,
         biome: type,
-        resources: type === 'forest' ? 3 : type === 'mountain' ? 1 : 2,
-        danger: type === 'water' ? 2 : 0,
+        resources: baseResources,
+        maxResources: baseResources + 2,
+        danger: baseDanger,
+        fertility: type === 'grass' || type === 'forest' ? 1 : 0.4,
       };
     }
   }

@@ -33,6 +33,9 @@ export function createOverviewTab({ onCommand }) {
     <div><dt>Средняя энергия</dt><dd data-field="energy">0</dd></div>
     <div><dt>Средняя сытость</dt><dd data-field="satiety">0</dd></div>
     <div><dt>Тренировка (мс)</dt><dd data-field="training">0</dd></div>
+    <div><dt>Хищники</dt><dd data-field="predators">0</dd></div>
+    <div><dt>Травоядные</dt><dd data-field="herbivores">0</dd></div>
+    <div><dt>Постройки</dt><dd data-field="structures">0</dd></div>
   `;
   element.appendChild(metricsList);
 
@@ -51,6 +54,12 @@ export function createOverviewTab({ onCommand }) {
       metricsList.querySelector('[data-field="training"]').textContent = state.metrics?.trainingTime
         ? state.metrics.trainingTime.toFixed(1)
         : '0';
+      const predatorCount = state.metrics?.predatorCount ?? 0;
+      const herbivoreCount = state.metrics?.herbivoreCount ?? 0;
+      const structureCount = state.metrics?.structureCount ?? 0;
+      metricsList.querySelector('[data-field="predators"]').textContent = predatorCount;
+      metricsList.querySelector('[data-field="herbivores"]').textContent = herbivoreCount;
+      metricsList.querySelector('[data-field="structures"]').textContent = structureCount;
     },
   };
 }

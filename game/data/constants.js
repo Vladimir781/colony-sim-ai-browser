@@ -30,3 +30,7 @@ export const FSM_BEHAVIORS = {
   idle: ['idle', 'explore'],
   alert: ['defend', 'signal'],
 };
+
+export const CREATURE_TYPES = ['herbivore', 'predator'];
+
+export const STRUCTURE_TYPES = ['shelter'];

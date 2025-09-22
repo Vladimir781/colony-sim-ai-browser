@@ -30,4 +30,26 @@ export const BASE_CONFIG = {
     tensionBudget: 1,
     cooldownTicks: 30,
   },
+  fauna: {
+    predators: 4,
+    herbivores: 10,
+    maxHerbivores: 24,
+    predatorAggroRange: 6,
+    predatorDamage: 0.25,
+    predatorFeast: 0.6,
+    herbivoreGrazeRate: 0.35,
+    herbivoreReproductionChance: 0.02,
+  },
+  structures: {
+    buildCost: 3,
+    reinforceCost: 1,
+    maxPerTile: 1,
+    durabilityLossPerTick: 0.001,
+    damageReduction: 0.15,
+    counterDamage: 0.05,
+  },
+  ecosystem: {
+    resourceRegrowth: 0.02,
+    maxDanger: 4,
+  },
 };
