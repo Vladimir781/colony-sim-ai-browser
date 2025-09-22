@@ -11,13 +11,14 @@ const BIOME_COLORS = {
 };
 
 export class PixiApp {
-  constructor({ containerId = 'game-root' } = {}) {
+  constructor({ containerId = 'game-root', onAgentSelect } = {}) {
     this.container = document.getElementById(containerId) ?? document.body;
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'game-canvas';
     this.ctx = this.canvas.getContext('2d', { alpha: false });
     this.container.appendChild(this.canvas);
     this.bubbles = new BubbleLayer(this.container);
+    this.onAgentSelect = onAgentSelect;
     this.sprite = new Image();
     this.spriteLoaded = false;
     this.sprite.src = SPRITE_MANIFEST.meta.image;
@@ -25,7 +26,9 @@ export class PixiApp {
       this.spriteLoaded = true;
     };
     this.state = null;
+    this.selectedAgentId = null;
     window.addEventListener('resize', () => this.fitToContainer());
+    this.canvas.addEventListener('click', (event) => this.handleClick(event));
   }
 
   fitToContainer() {
@@ -43,6 +46,29 @@ export class PixiApp {
     this.state = state;
     this.fitToContainer();
     this.render();
+  }
+
+  setSelectedAgent(agentId) {
+    if (this.selectedAgentId === agentId) return;
+    this.selectedAgentId = agentId;
+    if (this.state) {
+      this.render();
+    }
+  }
+
+  handleClick(event) {
+    if (!this.state) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const tileX = Math.floor(x / TILE_SIZE);
+    const tileY = Math.floor(y / TILE_SIZE);
+    const agent = this.state.agents?.find((item) => item.x === tileX && item.y === tileY);
+    if (agent) {
+      this.onAgentSelect?.(agent.id);
+    } else {
+      this.onAgentSelect?.(null);
+    }
   }
 
   render() {
@@ -108,6 +134,19 @@ export class PixiApp {
         Math.PI * 2,
       );
       ctx.fill();
+      if (agent.id === this.selectedAgentId) {
+        ctx.strokeStyle = '#25bff2';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(
+          agent.x * TILE_SIZE + TILE_SIZE / 2,
+          agent.y * TILE_SIZE + TILE_SIZE / 2,
+          TILE_SIZE / 2.2,
+          0,
+          Math.PI * 2,
+        );
+        ctx.stroke();
+      }
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
       ctx.fillText(
         agent.lastAction.toString(),

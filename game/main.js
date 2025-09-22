@@ -5,6 +5,7 @@ import { MESSAGE_TYPES } from './types.js';
 import { Simulation } from './core/sim.js';
 import { serializeSnapshot, applySnapshot } from './storage/snapshot.js';
 import { getStorage } from './storage/idb.js';
+import { AgentInspector } from './ui/agent_inspector.js';
 
 const CONFIG_STORAGE_KEY = 'colony-sim-config';
 
@@ -146,6 +147,17 @@ class InlineWorker {
         }
         break;
       }
+      case 'agent:update': {
+        const { agentId, ...changes } = payload ?? {};
+        if (typeof agentId === 'number') {
+          this.ensureSimulation();
+          const updated = this.simulation.updateAgent(agentId, changes);
+          if (updated) {
+            this.sendState();
+          }
+        }
+        break;
+      }
       default:
         break;
     }
@@ -186,7 +198,7 @@ async function createSimulationWorker() {
   return new InlineWorker();
 }
 
-const renderApp = new PixiApp({ containerId: 'game-root' });
+const renderApp = new PixiApp({ containerId: 'game-root', onAgentSelect: handleAgentSelect });
 let worker = null;
 const pendingMessages = [];
 const latestState = {
@@ -215,15 +227,25 @@ const latestState = {
   structures: [],
 };
 
+let selectedAgentId = null;
+
+function sendCommand(type, payload) {
+  if (!worker) {
+    pendingMessages.push({ type, payload });
+    return;
+  }
+  worker.postMessage({ type, payload });
+}
+
 const panel = new ControlPanel({
   containerId: 'panel-root',
-  onCommand: (type, payload) => {
-    if (!worker) {
-      pendingMessages.push({ type, payload });
-      return;
-    }
-    worker.postMessage({ type, payload });
-  },
+  onCommand: sendCommand,
+});
+
+const inspector = new AgentInspector({
+  containerId: 'game-root',
+  onCommand: sendCommand,
+  onClose: () => handleAgentSelect(null),
 });
 
 function handleWorkerMessage(event) {
@@ -235,8 +257,18 @@ function handleWorkerMessage(event) {
         latestState.commsAlphabet = BASE_CONFIG.comms.alphabet.split('');
       }
       persistConfig(latestState.config);
+      if (selectedAgentId != null) {
+        const exists = latestState.agents?.some((agent) => agent.id === selectedAgentId);
+        if (!exists) {
+          selectedAgentId = null;
+          renderApp.setSelectedAgent(null);
+          inspector.setSelection(null);
+        }
+      }
+      renderApp.selectedAgentId = selectedAgentId;
       renderApp.update({ ...latestState, commsAlphabet: latestState.commsAlphabet });
       panel.update(latestState);
+      inspector.update(latestState);
       break;
     }
     case MESSAGE_TYPES.STORAGE_RESULT: {
@@ -263,6 +295,20 @@ function handleWorkerMessage(event) {
     default:
       break;
   }
+}
+
+function handleAgentSelect(agentId) {
+  if (agentId == null) {
+    if (selectedAgentId !== null) {
+      selectedAgentId = null;
+      renderApp.setSelectedAgent(null);
+      inspector.setSelection(null);
+    }
+    return;
+  }
+  selectedAgentId = agentId;
+  renderApp.setSelectedAgent(agentId);
+  inspector.setSelection(agentId, latestState);
 }
 
 createSimulationWorker().then((createdWorker) => {

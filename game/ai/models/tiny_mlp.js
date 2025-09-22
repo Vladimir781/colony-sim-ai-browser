@@ -216,6 +216,10 @@ export function createTinyMLPDeep() {
   return new TinyMLP({ hiddenLayers: [96, 64], initScale: 0.05 });
 }
 
+export function createTinyMLPUltra() {
+  return new TinyMLP({ hiddenLayers: [256, 192, 128], initScale: 0.04 });
+}
+
 export const TINY_MLP_META = {
   inputSize: INPUT_SIZE,
   hiddenLayers: [64],
