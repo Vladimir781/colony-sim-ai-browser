@@ -33,6 +33,9 @@ export function createOverviewTab({ onCommand }) {
     <div><dt>Средняя энергия</dt><dd data-field="energy">0</dd></div>
     <div><dt>Средняя сытость</dt><dd data-field="satiety">0</dd></div>
     <div><dt>Средняя награда</dt><dd data-field="avgReward">0</dd></div>
+    <div><dt>Уровень колонии</dt><dd data-field="colonyLevel">1</dd></div>
+    <div><dt>Очки прогресса</dt><dd data-field="colonyScore">0</dd></div>
+    <div><dt>Открыто достижений</dt><dd data-field="colonyAchievements">0</dd></div>
     <div><dt>Время обучения (мс)</dt><dd data-field="training">0</dd></div>
     <div><dt>Последнее обновление (мс)</dt><dd data-field="lastTraining">0</dd></div>
     <div><dt>Награда последнего батча</dt><dd data-field="batchReward">0</dd></div>
@@ -70,6 +73,15 @@ export function createOverviewTab({ onCommand }) {
         : '0';
       metricsList.querySelector('[data-field="buffer"]').textContent = state.metrics?.bufferSize ?? 0;
       metricsList.querySelector('[data-field="updates"]').textContent = state.metrics?.totalUpdates ?? 0;
+      const progression = state.progression ?? {};
+      const colonyLevel = progression.level ?? 1;
+      const colonyScore = progression.effectiveScore ?? progression.score ?? 0;
+      const unlocked = progression.unlockedCount ?? 0;
+      metricsList.querySelector('[data-field="colonyLevel"]').textContent = colonyLevel;
+      metricsList
+        .querySelector('[data-field="colonyScore"]')
+        .textContent = Math.round(colonyScore);
+      metricsList.querySelector('[data-field="colonyAchievements"]').textContent = unlocked;
       const predatorCount = state.metrics?.predatorCount ?? 0;
       const herbivoreCount = state.metrics?.herbivoreCount ?? 0;
       const structureCount = state.metrics?.structureCount ?? 0;

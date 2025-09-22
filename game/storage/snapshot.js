@@ -41,5 +41,8 @@ export function applySnapshot(simulation, snapshot) {
     }
   }
   simulation.tick = snapshot.data.tick;
+  if (snapshot.data.progression && typeof simulation.progression?.load === 'function') {
+    simulation.progression.load(snapshot.data.progression);
+  }
   return true;
 }

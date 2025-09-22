@@ -250,6 +250,11 @@ main {
   font-size: 1.5rem;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
 }
 
 .button-row {

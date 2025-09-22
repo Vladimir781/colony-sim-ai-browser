@@ -20,6 +20,9 @@ export const BASE_CONFIG = {
     updateFrequency: 10,
     gradientClip: 5,
     maxTrainingTimeMs: 2,
+    explorationEpsilon: 0.12,
+    instinctWeight: 0.4,
+    memoryWindow: 180,
   },
   comms: {
     alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ012345',

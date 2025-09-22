@@ -19,6 +19,7 @@ import {
 import { TinyGRU } from '../ai/models/tiny_gru.js';
 import { BRAIN_DEFAULT } from '../ai/brains/brain.default.u8arr.js';
 import { ReinforceLearner } from '../ai/learn/reinforce.js';
+import { ProgressionTracker } from './progression.js';
 
 function sampleFrom(probs, rand = Math.random) {
   let sum = 0;
@@ -28,6 +29,20 @@ function sampleFrom(probs, rand = Math.random) {
     if (threshold <= sum) return i;
   }
   return probs.length - 1;
+}
+
+function sampleWithEpsilon(probs, epsilon, rand = Math.random) {
+  if (!epsilon || epsilon <= 0) {
+    return sampleFrom(probs, rand);
+  }
+  if (rand() < epsilon) {
+    return Math.floor(rand() * probs.length);
+  }
+  return sampleFrom(probs, rand);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function createBrain(model) {
@@ -115,6 +130,9 @@ export class Simulation {
       learningRate: config.brains.learningRate,
       gradientClip: config.brains.gradientClip,
     });
+    this.progression = new ProgressionTracker({
+      tickRate: config.tickRate ?? BASE_CONFIG.tickRate,
+    });
     this.metrics = {
       avgEnergy: 1,
       avgSatiety: 1,
@@ -173,6 +191,7 @@ export class Simulation {
       this.agents.push(agent);
       this.ecs.addComponent(entity, 'agent', agent);
       this.ecs.addComponent(entity, 'position', { x: tile.x, y: tile.y });
+      this.progression.noteTileVisit(agent.x, agent.y);
     }
   }
 
@@ -263,7 +282,11 @@ export class Simulation {
     const instinct = this.instinctForAgent(agent);
     if (!instinct) return actionIndex;
     const override = ACTION_INDEX[instinct];
-    if (typeof override === 'number') {
+    if (typeof override !== 'number') {
+      return actionIndex;
+    }
+    const instinctWeight = clamp(this.config.brains?.instinctWeight ?? 0.35, 0, 1);
+    if (instinctWeight >= 1 || this.world.rand() < instinctWeight) {
       return override;
     }
     return actionIndex;
@@ -354,6 +377,7 @@ export class Simulation {
       impact: damage,
       tick: this.tick,
     });
+    const survived = agent.energy > 0.01;
     if (agent.energy <= 0.01) {
       agent.energy = 0.05;
       agent.satiety = Math.max(agent.satiety, 0.1);
@@ -362,6 +386,7 @@ export class Simulation {
         tick: this.tick,
       });
     }
+    this.progression.recordPredatorEncounter({ survived: survived || agent.energy > 0 });
   }
 
   consumeHerbivore(predator, herbivore) {
@@ -523,8 +548,10 @@ export class Simulation {
       const collected = this.world.harvest(tile, 1);
       if (tile.biome === 'forest') {
         agent.inventory.wood += collected;
+        this.progression.recordResource('wood', collected);
       } else {
         agent.inventory.food += collected;
+        this.progression.recordResource('food', collected);
       }
       reward += collected * 0.2;
       tile.danger = Math.max(0, tile.danger - 0.02);
@@ -542,7 +569,9 @@ export class Simulation {
       reward += structure ? 0.06 : 0.03;
       if (structure) {
         this.world.reinforceStructure(agent.x, agent.y, 0.05);
+        this.progression.recordStructureReinforced();
       }
+      this.progression.recordRestTick();
     } else if (action === 'signal') {
       reward -= 0.01;
     } else if (action === 'build') {
@@ -555,6 +584,7 @@ export class Simulation {
           agent.inventory.wood -= cost;
           this.world.reinforceStructure(agent.x, agent.y, 0.2);
           reward += 0.2;
+          this.progression.recordStructureReinforced();
         } else {
           reward -= 0.04;
         }
@@ -569,6 +599,7 @@ export class Simulation {
             impact: 0.04,
             tick: this.tick,
           });
+          this.progression.recordStructureBuilt();
         } else {
           reward -= 0.05;
         }
@@ -578,6 +609,7 @@ export class Simulation {
       if (predatorInfo && predatorInfo.distance <= 1) {
         predatorInfo.predator.hunger = Math.max(0, predatorInfo.predator.hunger - 0.1);
         reward += 0.05;
+        this.progression.recordPredatorDefense();
       } else {
         reward -= 0.01;
       }
@@ -585,6 +617,7 @@ export class Simulation {
       reward += 0.01;
       const tile = this.world.tileAt(agent.x, agent.y);
       tile.danger = Math.max(0, tile.danger - 0.01);
+      this.progression.recordExploreAction();
     }
 
     agent.energy = Math.max(0, agent.energy - 0.01);
@@ -603,7 +636,9 @@ export class Simulation {
   processCommunication(agent, symbolIndex) {
     if (symbolIndex <= 0) return 0;
     const symbol = this.config.comms.alphabet[symbolIndex % this.config.comms.alphabet.length];
-    return this.communications.send(agent.id, [symbol]);
+    const cost = this.communications.send(agent.id, [symbol]);
+    this.progression.recordMessageSent();
+    return cost;
   }
 
   autoThrottle() {
@@ -697,14 +732,17 @@ export class Simulation {
         symbolIndex = decision.symbolIndex;
       } else {
         const { actionProbs, symbolProbs, baseline: predictedBaseline } = agent.brain.forward(obs);
-        actionIndex = sampleFrom(actionProbs, this.world.rand);
-        symbolIndex = sampleFrom(symbolProbs, this.world.rand);
+        const epsilon = clamp(this.config.brains?.explorationEpsilon ?? 0, 0, 0.6);
+        const symbolEpsilon = clamp(epsilon * 0.5, 0, 0.4);
+        actionIndex = sampleWithEpsilon(actionProbs, epsilon, this.world.rand);
+        symbolIndex = sampleWithEpsilon(symbolProbs, symbolEpsilon, this.world.rand);
         baseline = predictedBaseline;
       }
       actionIndex = this.applyInstincts(agent, actionIndex);
       const reward = this.applyAction(agent, actionIndex);
       const commCost = this.processCommunication(agent, symbolIndex);
       const totalReward = reward - commCost;
+      this.progression.recordReward(totalReward);
       agent.lastAction = actionIndex;
       if (symbolIndex > 0) {
         agent.lastSymbol = symbolIndex;
@@ -722,6 +760,10 @@ export class Simulation {
         reward: totalReward,
         baseline,
       });
+      const memoryLimit = Math.max(0, Math.floor(this.config.brains?.memoryWindow ?? 0));
+      if (memoryLimit > 0 && agent.memory.length > memoryLimit) {
+        agent.memory.splice(0, agent.memory.length - memoryLimit);
+      }
       if (agent.training) {
         const training = agent.training;
         training.steps += 1;
@@ -736,6 +778,7 @@ export class Simulation {
         training.recentRewards.push(totalReward);
         if (training.recentRewards.length > 30) training.recentRewards.shift();
       }
+      this.progression.noteTileVisit(agent.x, agent.y);
       if (this.tick % this.config.brains.updateFrequency === 0) {
         this.learn(agent);
       }
@@ -766,6 +809,14 @@ export class Simulation {
     this.metrics.predatorCount = this.predators.length;
     this.metrics.herbivoreCount = this.herbivores.length;
     this.metrics.structureCount = this.world.structures.length;
+    this.progression.updateTick({
+      tick: this.tick,
+      metrics: this.metrics,
+      agents: this.agents,
+      structures: this.world.structures.length,
+      predators: this.predators.length,
+      herbivores: this.herbivores.length,
+    });
   }
 
   setThinkEvery(value) {
@@ -788,6 +839,29 @@ export class Simulation {
       agent.memory = [];
       agent.rewards = [];
       agent.training = createTrainingState();
+    }
+  }
+
+  updateBrainTuning(updates = {}) {
+    if (!updates || typeof updates !== 'object') return;
+    const brainConfig = this.config.brains ?? {};
+    if (typeof updates.explorationEpsilon === 'number' && Number.isFinite(updates.explorationEpsilon)) {
+      brainConfig.explorationEpsilon = clamp(updates.explorationEpsilon, 0, 0.6);
+    }
+    if (typeof updates.instinctWeight === 'number' && Number.isFinite(updates.instinctWeight)) {
+      brainConfig.instinctWeight = clamp(updates.instinctWeight, 0, 1);
+    }
+    if (typeof updates.memoryWindow === 'number' && Number.isFinite(updates.memoryWindow)) {
+      const limit = Math.max(8, Math.round(updates.memoryWindow));
+      brainConfig.memoryWindow = limit;
+      for (const agent of this.agents) {
+        if (agent.memory.length > limit) {
+          agent.memory.splice(0, agent.memory.length - limit);
+        }
+        if (agent.training?.recentRewards && agent.training.recentRewards.length > limit) {
+          agent.training.recentRewards.splice(0, agent.training.recentRewards.length - limit);
+        }
+      }
     }
   }
 
@@ -924,6 +998,7 @@ export class Simulation {
         herbivoreCount: this.metrics.herbivoreCount,
         structureCount: this.metrics.structureCount,
       },
+      progression: this.progression?.snapshot() ?? null,
     };
   }
 
