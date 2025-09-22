@@ -79,3 +79,168 @@
 .tab-help button {
   flex-shrink: 0;
 }
+
+.metrics-grid.compact div {
+  padding: 0.5rem;
+}
+
+.tab-training {
+  display: grid;
+  gap: 1rem;
+}
+
+.tab-training select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(20, 28, 40, 0.6);
+  color: inherit;
+}
+
+.tab-training .training-trends {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.tab-training .trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  height: 90px;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: rgba(12, 18, 30, 0.75);
+}
+
+.tab-training .trend[data-empty='true'] {
+  justify-content: center;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+}
+
+.tab-training .trend[data-empty='true']::before {
+  content: 'Нет данных';
+}
+
+.tab-training .trend span {
+  flex: 1;
+  min-width: 3px;
+  border-radius: 0.25rem 0.25rem 0 0;
+  background: linear-gradient(180deg, rgba(95, 155, 255, 0.9), rgba(95, 155, 255, 0.2));
+}
+
+.tab-training .trend span.negative {
+  background: linear-gradient(180deg, rgba(231, 76, 60, 0.85), rgba(231, 76, 60, 0.3));
+}
+
+.tab-training .training-agent-meta h3 {
+  margin-bottom: 0.25rem;
+}
+
+.tab-training .weights-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.tab-training .weight-row {
+  display: grid;
+  grid-template-columns: minmax(48px, auto) 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tab-training .weight-bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tab-training .weight-bar {
+  position: relative;
+  flex: 1;
+  height: 12px;
+  background: rgba(95, 155, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.tab-training .weight-bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(95, 155, 255, 0.75), rgba(95, 155, 255, 0.25));
+}
+
+.tab-training .weight-bar.negative .weight-bar-fill {
+  background: linear-gradient(90deg, rgba(231, 76, 60, 0.85), rgba(231, 76, 60, 0.35));
+}
+
+.tab-training .weight-value {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.75rem;
+  opacity: 0.75;
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.tab-training .empty-message {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
+.fauna-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.fauna-section > div {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.fauna-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.fauna-list li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(12, 18, 30, 0.75);
+}
+
+.fauna-list li.empty {
+  justify-content: center;
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
+.fauna-list.predators li {
+  border-left: 3px solid rgba(231, 76, 60, 0.7);
+}
+
+.fauna-list.herbivores li {
+  border-left: 3px solid rgba(249, 231, 159, 0.7);
+}
+
+.fauna-name {
+  font-weight: 600;
+}
+
+.fauna-meta {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}

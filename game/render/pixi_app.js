@@ -91,6 +91,11 @@ export class PixiApp {
       ctx.lineTo(cx - TILE_SIZE / 3, cy + TILE_SIZE / 3);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = 'rgba(231, 76, 60, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, TILE_SIZE / 2.2, 0, Math.PI * 2);
+      ctx.stroke();
     }
     for (const agent of agents) {
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
