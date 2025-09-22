@@ -141,6 +141,17 @@ self.addEventListener('message', async (event) => {
     case 'brains:import':
       await handleImportBrains(payload);
       break;
+    case 'agent:update': {
+      const { agentId, ...changes } = payload ?? {};
+      if (typeof agentId === 'number') {
+        ensureSimulation();
+        const updated = simulation.updateAgent(agentId, changes);
+        if (updated) {
+          sendState();
+        }
+      }
+      break;
+    }
     default:
       break;
   }

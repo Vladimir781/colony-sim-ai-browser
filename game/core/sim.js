@@ -14,6 +14,7 @@ import {
   createTinyMLPWide,
   createTinyMLPDeep,
   createTinyMLPRandom,
+  createTinyMLPUltra,
 } from '../ai/models/tiny_mlp.js';
 import { TinyGRU } from '../ai/models/tiny_gru.js';
 import { BRAIN_DEFAULT } from '../ai/brains/brain.default.u8arr.js';
@@ -35,6 +36,8 @@ function createBrain(model) {
       return createTinyMLPWide();
     case 'tiny-mlp-deep':
       return createTinyMLPDeep();
+    case 'tiny-mlp-ultra':
+      return createTinyMLPUltra();
     case 'tiny-gru':
       return new TinyGRU({ weights: new Float32Array(BRAIN_DEFAULT) });
     case 'tiny-mlp':
@@ -788,6 +791,52 @@ export class Simulation {
     }
   }
 
+  updateAgent(agentId, updates = {}) {
+    if (typeof agentId !== 'number' || !Number.isFinite(agentId)) return false;
+    const agent = this.agents.find((item) => item.id === agentId);
+    if (!agent) return false;
+
+    const {
+      energy,
+      satiety,
+      thinkEvery,
+      useFSM,
+      role,
+      traits,
+      inventory,
+    } = updates;
+
+    if (typeof energy === 'number' && Number.isFinite(energy)) {
+      agent.energy = Math.max(0, Math.min(1, energy));
+    }
+    if (typeof satiety === 'number' && Number.isFinite(satiety)) {
+      agent.satiety = Math.max(0, Math.min(1, satiety));
+    }
+    if (typeof thinkEvery === 'number' && Number.isFinite(thinkEvery)) {
+      const value = Math.max(1, Math.round(thinkEvery));
+      agent.thinkEvery = value;
+    }
+    if (typeof useFSM === 'boolean') {
+      agent.useFSM = useFSM;
+    }
+    if (typeof role === 'string' && role.trim()) {
+      agent.role = role.trim();
+    }
+    if (Array.isArray(traits)) {
+      agent.traits = traits.map((trait) => String(trait).trim()).filter((trait) => trait.length);
+    }
+    if (inventory && typeof inventory === 'object') {
+      if (typeof inventory.food === 'number' && Number.isFinite(inventory.food)) {
+        agent.inventory.food = Math.max(0, Math.round(inventory.food));
+      }
+      if (typeof inventory.wood === 'number' && Number.isFinite(inventory.wood)) {
+        agent.inventory.wood = Math.max(0, Math.round(inventory.wood));
+      }
+    }
+
+    return true;
+  }
+
   snapshot() {
     return {
       tick: this.tick,
@@ -897,7 +946,7 @@ export class Simulation {
         stats: { min: 0, max: 0, mean: 0, std: 0 },
       };
     }
-    const previewCount = Math.min(24, size);
+    const previewCount = Math.min(64, size);
     let min = Infinity;
     let max = -Infinity;
     let sum = 0;

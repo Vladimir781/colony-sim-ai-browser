@@ -44,7 +44,7 @@ export function createSettingsTab({ onCommand }) {
   brainLabel.htmlFor = 'brain-model';
   const brainSelect = document.createElement('select');
   brainSelect.id = 'brain-model';
-  for (const value of ['tiny-mlp', 'tiny-mlp-wide', 'tiny-mlp-deep', 'tiny-gru']) {
+  for (const value of ['tiny-mlp', 'tiny-mlp-wide', 'tiny-mlp-deep', 'tiny-mlp-ultra', 'tiny-gru']) {
     const option = document.createElement('option');
     option.value = value;
     option.textContent = value;
