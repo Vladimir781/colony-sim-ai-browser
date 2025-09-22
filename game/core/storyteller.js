@@ -31,6 +31,19 @@ export class Storyteller {
     return event;
   }
 
+  record(type, description, { impact = 0.05, tick = 0 } = {}) {
+    const event = {
+      type,
+      tick,
+      impact,
+      description,
+    };
+    this.history.push(event);
+    if (this.history.length > 50) this.history.shift();
+    this.tensionBudget = Math.max(0, this.tensionBudget - impact * 0.1);
+    return event;
+  }
+
   describe(type) {
     switch (type) {
       case 'storm':

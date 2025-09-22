@@ -16,7 +16,8 @@ export function createEventsTab() {
       list.innerHTML = '';
       for (const event of events.slice().reverse()) {
         const item = document.createElement('li');
-        item.textContent = `${event.type.toUpperCase()}: ${event.description}`;
+        const tick = typeof event.tick === 'number' ? `t=${Math.round(event.tick)}` : '';
+        item.textContent = `${event.type.toUpperCase()} ${tick}`.trim() + `: ${event.description}`;
         list.appendChild(item);
       }
     },

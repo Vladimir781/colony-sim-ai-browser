@@ -16,6 +16,7 @@ export function createAgentsTab() {
         <th scope="col">Сытость</th>
         <th scope="col">Роль</th>
         <th scope="col">Трейты</th>
+        <th scope="col">Запасы</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -37,6 +38,7 @@ export function createAgentsTab() {
           <td>${agent.satiety.toFixed(2)}</td>
           <td>${agent.role}</td>
           <td>${agent.traits.join(', ')}</td>
+          <td>🍖 ${agent.inventory.food ?? 0}, 🪵 ${agent.inventory.wood ?? 0}</td>
         `;
         tbody.appendChild(row);
       }

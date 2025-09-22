@@ -42,6 +42,24 @@ function makeTraits(index) {
   return traits;
 }
 
+const ACTION_INDEX = ACTIONS.reduce((acc, action, index) => {
+  acc[action] = index;
+  return acc;
+}, {});
+
+const MOVE_ACTIONS = ['move_north', 'move_south', 'move_east', 'move_west'];
+
+const MOVE_VECTORS = {
+  move_north: [0, -1],
+  move_south: [0, 1],
+  move_east: [1, 0],
+  move_west: [-1, 0],
+};
+
+function manhattan(ax, ay, bx, by) {
+  return Math.abs(ax - bx) + Math.abs(ay - by);
+}
+
 export class Simulation {
   constructor(config = BASE_CONFIG) {
     this.config = JSON.parse(JSON.stringify(config));
@@ -50,6 +68,8 @@ export class Simulation {
       width: config.world.width,
       height: config.world.height,
       seed: config.world.seed,
+      structureDecayRate: config.structures?.durabilityLossPerTick ?? 0.001,
+      resourceRegrowth: config.ecosystem?.resourceRegrowth ?? 0.02,
     });
     this.communications = new CommunicationsChannel({
       alphabet: config.comms.alphabet,
@@ -67,9 +87,18 @@ export class Simulation {
       avgSatiety: 1,
       lastEvent: null,
       trainingTime: 0,
+      predatorCount: 0,
+      herbivoreCount: 0,
+      structureCount: 0,
     };
 
+    this.predators = [];
+    this.herbivores = [];
+    this.nextPredatorId = 1;
+    this.nextHerbivoreId = 1;
+
     this.spawnAgents();
+    this.spawnFauna();
   }
 
   spawnAgents() {
@@ -105,6 +134,278 @@ export class Simulation {
     }
   }
 
+  spawnFauna() {
+    const faunaConfig = this.config.fauna ?? {};
+    const herbCount = faunaConfig.herbivores ?? 0;
+    const predatorCount = faunaConfig.predators ?? 0;
+    for (let i = 0; i < herbCount; i += 1) {
+      const tile = this.world.randomSpawnTile();
+      this.herbivores.push(this.createHerbivore(tile.x, tile.y));
+    }
+    for (let i = 0; i < predatorCount; i += 1) {
+      const tile = this.world.randomSpawnTile();
+      this.predators.push(this.createPredator(tile.x, tile.y));
+    }
+  }
+
+  createHerbivore(x, y) {
+    const herbivore = {
+      id: this.nextHerbivoreId,
+      x,
+      y,
+      hunger: 1,
+    };
+    this.nextHerbivoreId += 1;
+    return herbivore;
+  }
+
+  createPredator(x, y) {
+    const predator = {
+      id: this.nextPredatorId,
+      x,
+      y,
+      hunger: 1,
+      cooldown: 0,
+    };
+    this.nextPredatorId += 1;
+    return predator;
+  }
+
+  findClosestPredator(agent) {
+    let closest = null;
+    let bestDistance = Infinity;
+    for (const predator of this.predators) {
+      const distance = manhattan(agent.x, agent.y, predator.x, predator.y);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        closest = predator;
+      }
+    }
+    if (!closest) return null;
+    return { predator: closest, distance: bestDistance };
+  }
+
+  directionAwayFrom(agent, predator) {
+    const dx = agent.x - predator.x;
+    const dy = agent.y - predator.y;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      return dx >= 0 ? 'move_east' : 'move_west';
+    }
+    return dy >= 0 ? 'move_south' : 'move_north';
+  }
+
+  instinctForAgent(agent) {
+    const tile = this.world.tileAt(agent.x, agent.y);
+    const predatorInfo = this.findClosestPredator(agent);
+    if (predatorInfo) {
+      if (predatorInfo.distance <= 1) return 'defend';
+      if (predatorInfo.distance <= 3) {
+        const direction = this.directionAwayFrom(agent, predatorInfo.predator);
+        if (direction) return direction;
+      }
+    }
+    if (agent.energy < 0.25) return 'rest';
+    if (agent.inventory.wood >= (this.config.structures?.buildCost ?? 3) && !this.world.structureAt(agent.x, agent.y)) {
+      return 'build';
+    }
+    if (agent.satiety < 0.4 && tile.resources > 0.2) {
+      return 'gather';
+    }
+    if (tile.resources <= 0.2 && this.world.rand() < 0.3) {
+      return MOVE_ACTIONS[Math.floor(this.world.rand() * MOVE_ACTIONS.length)];
+    }
+    return null;
+  }
+
+  applyInstincts(agent, actionIndex) {
+    const instinct = this.instinctForAgent(agent);
+    if (!instinct) return actionIndex;
+    const override = ACTION_INDEX[instinct];
+    if (typeof override === 'number') {
+      return override;
+    }
+    return actionIndex;
+  }
+
+  moveCreature(creature, dx, dy) {
+    const [nx, ny] = this.world.wrap(creature.x + dx, creature.y + dy);
+    const tile = this.world.tileAt(nx, ny);
+    if (!this.world.isPassable(tile)) return false;
+    creature.x = nx;
+    creature.y = ny;
+    return true;
+  }
+
+  moveTowards(creature, targetX, targetY) {
+    const dx = targetX - creature.x;
+    const dy = targetY - creature.y;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.moveCreature(creature, Math.sign(dx), 0);
+    } else if (dy !== 0) {
+      this.moveCreature(creature, 0, Math.sign(dy));
+    }
+  }
+
+  wanderCreature(creature, chance = 0.5) {
+    if (this.world.rand() > chance) return;
+    const move = MOVE_ACTIONS[Math.floor(this.world.rand() * MOVE_ACTIONS.length)];
+    const [dx, dy] = MOVE_VECTORS[move];
+    this.moveCreature(creature, dx, dy);
+  }
+
+  findPredatorTarget(predator, range) {
+    let closestAgent = null;
+    let closestAgentDist = Infinity;
+    for (const agent of this.agents) {
+      const distance = manhattan(agent.x, agent.y, predator.x, predator.y);
+      if (distance < closestAgentDist && distance <= range) {
+        closestAgent = agent;
+        closestAgentDist = distance;
+      }
+    }
+    if (closestAgent) {
+      return { type: 'agent', agent: closestAgent, distance: closestAgentDist, x: closestAgent.x, y: closestAgent.y };
+    }
+    let closestHerbivore = null;
+    let closestHerbivoreDist = Infinity;
+    for (const herbivore of this.herbivores) {
+      const distance = manhattan(herbivore.x, herbivore.y, predator.x, predator.y);
+      if (distance < closestHerbivoreDist) {
+        closestHerbivore = herbivore;
+        closestHerbivoreDist = distance;
+      }
+    }
+    if (closestHerbivore && closestHerbivoreDist <= range + 2) {
+      return {
+        type: 'herbivore',
+        herbivore: closestHerbivore,
+        distance: closestHerbivoreDist,
+        x: closestHerbivore.x,
+        y: closestHerbivore.y,
+      };
+    }
+    return null;
+  }
+
+  resolvePredatorAttack(predator, agent) {
+    const faunaConfig = this.config.fauna ?? {};
+    const structuresConfig = this.config.structures ?? {};
+    const safe = this.world.isSafeTile(agent.x, agent.y);
+    const mitigation = safe ? structuresConfig.damageReduction ?? 0.15 : 0;
+    const damage = Math.max(0.05, (faunaConfig.predatorDamage ?? 0.2) * (1 - mitigation));
+    agent.energy = Math.max(0, agent.energy - damage);
+    agent.satiety = Math.max(0, agent.satiety - damage * 0.5);
+    predator.hunger = Math.min(1, predator.hunger + (faunaConfig.predatorFeast ?? 0.4) * 0.5);
+    const tile = this.world.tileAt(agent.x, agent.y);
+    tile.danger = Math.min(this.config.ecosystem?.maxDanger ?? 4, tile.danger + damage);
+    if (safe) {
+      const survived = this.world.damageStructure(agent.x, agent.y, structuresConfig.damageReduction ?? 0.1);
+      predator.hunger = Math.max(0, predator.hunger - (structuresConfig.counterDamage ?? 0.05));
+      if (!survived) {
+        this.storyteller.record('structure_destroyed', 'Укрытие разрушено хищником', {
+          impact: damage * 0.5,
+          tick: this.tick,
+        });
+      }
+    }
+    this.storyteller.record('predator_attack', `Хищник атакует агента ${agent.id}`, {
+      impact: damage,
+      tick: this.tick,
+    });
+    if (agent.energy <= 0.01) {
+      agent.energy = 0.05;
+      agent.satiety = Math.max(agent.satiety, 0.1);
+      this.storyteller.record('agent_injured', `Агент ${agent.id} тяжело ранен`, {
+        impact: damage * 0.5,
+        tick: this.tick,
+      });
+    }
+  }
+
+  consumeHerbivore(predator, herbivore) {
+    this.herbivores = this.herbivores.filter((item) => item !== herbivore);
+    predator.hunger = Math.min(1, predator.hunger + (this.config.fauna?.predatorFeast ?? 0.6));
+    const tile = this.world.tileAt(predator.x, predator.y);
+    tile.danger = Math.min(this.config.ecosystem?.maxDanger ?? 4, tile.danger + 0.2);
+    this.storyteller.record('predator_feast', 'Хищник пожирает добычу', {
+      impact: 0.04,
+      tick: this.tick,
+    });
+  }
+
+  updateHerbivores() {
+    const faunaConfig = this.config.fauna ?? {};
+    const newborns = [];
+    for (const herbivore of this.herbivores) {
+      herbivore.hunger = Math.max(0, herbivore.hunger - 0.01);
+      this.wanderCreature(herbivore, 0.6);
+      const tile = this.world.tileAt(herbivore.x, herbivore.y);
+      if (tile.resources > 0 && this.world.rand() < (faunaConfig.herbivoreGrazeRate ?? 0.3)) {
+        const eaten = this.world.harvest(tile, 0.5, { track: false });
+        herbivore.hunger = Math.min(1, herbivore.hunger + eaten * 0.2);
+        tile.danger = Math.max(0, tile.danger - 0.02);
+      }
+      if (
+        herbivore.hunger > 0.8 &&
+        this.herbivores.length + newborns.length < (faunaConfig.maxHerbivores ?? 20) &&
+        this.world.rand() < (faunaConfig.herbivoreReproductionChance ?? 0.01)
+      ) {
+        newborns.push(this.createHerbivore(herbivore.x, herbivore.y));
+      }
+    }
+    this.herbivores = this.herbivores.filter((herbivore) => herbivore.hunger > 0.05);
+    this.herbivores.push(...newborns);
+    if (this.herbivores.length < (faunaConfig.herbivores ?? 0) && this.world.rand() < 0.1) {
+      const tile = this.world.randomSpawnTile();
+      this.herbivores.push(this.createHerbivore(tile.x, tile.y));
+    }
+  }
+
+  updatePredators() {
+    const faunaConfig = this.config.fauna ?? {};
+    const aggroRange = faunaConfig.predatorAggroRange ?? 6;
+    const survivors = [];
+    for (const predator of this.predators) {
+      predator.hunger = Math.max(0, predator.hunger - 0.015);
+      if (predator.cooldown > 0) predator.cooldown -= 1;
+      const target = this.findPredatorTarget(predator, aggroRange);
+      if (target && predator.cooldown <= 0) {
+        if (target.distance <= 0) {
+          if (target.type === 'agent') {
+            this.resolvePredatorAttack(predator, target.agent);
+          } else if (target.type === 'herbivore') {
+            this.consumeHerbivore(predator, target.herbivore);
+          }
+          predator.cooldown = 2;
+        } else {
+          this.moveTowards(predator, target.x, target.y);
+        }
+      } else {
+        this.wanderCreature(predator, 0.5);
+      }
+      const tile = this.world.tileAt(predator.x, predator.y);
+      tile.danger = Math.min(this.config.ecosystem?.maxDanger ?? 4, tile.danger + 0.05);
+      if (predator.hunger > 0.05) {
+        survivors.push(predator);
+      } else {
+        this.storyteller.record('predator_starved', 'Хищник погиб от голода', {
+          impact: 0.02,
+          tick: this.tick,
+        });
+      }
+    }
+    this.predators = survivors;
+    if (this.predators.length < (faunaConfig.predators ?? 0) && this.world.rand() < 0.05) {
+      const tile = this.world.randomSpawnTile();
+      const newcomer = this.createPredator(tile.x, tile.y);
+      this.predators.push(newcomer);
+      this.storyteller.record('predator_spawn', 'В экосистеме появился новый хищник', {
+        impact: 0.03,
+        tick: this.tick,
+      });
+    }
+  }
+
   buildObservation(agent) {
     const obs = new Float32Array(128);
     obs[0] = agent.x / this.world.width;
@@ -120,6 +421,11 @@ export class Simulation {
     obs[12] = thinkEveryIndex / THINK_EVERY_OPTIONS.length;
     const timeNorm = this.world.timeOfDay / 300;
     obs[13] = timeNorm;
+    const predatorInfo = this.findClosestPredator(agent);
+    obs[14] = predatorInfo ? Math.min(1, predatorInfo.distance / ((this.config.fauna?.predatorAggroRange ?? 6) + 1)) : 1;
+    const structure = this.world.structureAt(agent.x, agent.y);
+    obs[15] = structure ? structure.durability : 0;
+    obs[16] = Math.min(1, tile.danger / (this.config.ecosystem?.maxDanger ?? 4));
 
     for (let i = 0; i < agent.traits.length && i < 5; i += 1) {
       obs[20 + i] = 1;
@@ -166,14 +472,20 @@ export class Simulation {
         agent.x = nx;
         agent.y = ny;
         reward += 0.02;
+        tile.danger = Math.max(0, tile.danger - 0.01);
       } else {
         reward -= 0.02;
       }
     } else if (action === 'gather') {
       const tile = this.world.tileAt(agent.x, agent.y);
       const collected = this.world.harvest(tile, 1);
-      agent.inventory.food += collected;
+      if (tile.biome === 'forest') {
+        agent.inventory.wood += collected;
+      } else {
+        agent.inventory.food += collected;
+      }
       reward += collected * 0.2;
+      tile.danger = Math.max(0, tile.danger - 0.02);
     } else if (action === 'drop') {
       const tile = this.world.tileAt(agent.x, agent.y);
       if (agent.inventory.food > 0) {
@@ -182,14 +494,55 @@ export class Simulation {
         reward += 0.05;
       }
     } else if (action === 'rest') {
-      agent.energy = Math.min(1, agent.energy + 0.1);
-      reward += 0.03;
+      const structure = this.world.structureAt(agent.x, agent.y);
+      const boost = structure ? 0.18 : 0.1;
+      agent.energy = Math.min(1, agent.energy + boost);
+      reward += structure ? 0.06 : 0.03;
+      if (structure) {
+        this.world.reinforceStructure(agent.x, agent.y, 0.05);
+      }
     } else if (action === 'signal') {
-      reward -= 0.02;
-    } else if (action === 'defend') {
       reward -= 0.01;
+    } else if (action === 'build') {
+      const tile = this.world.tileAt(agent.x, agent.y);
+      const structureConfig = this.config.structures ?? {};
+      const existing = this.world.structureAt(agent.x, agent.y);
+      if (existing) {
+        const cost = structureConfig.reinforceCost ?? 1;
+        if (agent.inventory.wood >= cost) {
+          agent.inventory.wood -= cost;
+          this.world.reinforceStructure(agent.x, agent.y, 0.2);
+          reward += 0.2;
+        } else {
+          reward -= 0.04;
+        }
+      } else if (this.world.isPassable(tile)) {
+        const cost = structureConfig.buildCost ?? 3;
+        if (agent.inventory.wood >= cost) {
+          agent.inventory.wood -= cost;
+          this.world.addStructure({ x: agent.x, y: agent.y, builtBy: agent.id });
+          tile.danger = Math.max(0, tile.danger - 0.3);
+          reward += 0.3;
+          this.storyteller.record('structure', `Агент ${agent.id} построил укрытие`, {
+            impact: 0.04,
+            tick: this.tick,
+          });
+        } else {
+          reward -= 0.05;
+        }
+      }
+    } else if (action === 'defend') {
+      const predatorInfo = this.findClosestPredator(agent);
+      if (predatorInfo && predatorInfo.distance <= 1) {
+        predatorInfo.predator.hunger = Math.max(0, predatorInfo.predator.hunger - 0.1);
+        reward += 0.05;
+      } else {
+        reward -= 0.01;
+      }
     } else if (action === 'explore') {
       reward += 0.01;
+      const tile = this.world.tileAt(agent.x, agent.y);
+      tile.danger = Math.max(0, tile.danger - 0.01);
     }
 
     agent.energy = Math.max(0, agent.energy - 0.01);
@@ -266,6 +619,7 @@ export class Simulation {
         symbolIndex = sampleFrom(symbolProbs, this.world.rand);
         baseline = predictedBaseline;
       }
+      actionIndex = this.applyInstincts(agent, actionIndex);
       const reward = this.applyAction(agent, actionIndex);
       const commCost = this.processCommunication(agent, symbolIndex);
       const totalReward = reward - commCost;
@@ -291,12 +645,18 @@ export class Simulation {
       }
     }
 
+    this.updateHerbivores();
+    this.updatePredators();
+
     const event = this.storyteller.tick(1, this.world, this.ecs);
     if (event) {
       this.metrics.lastEvent = event;
     }
     this.metrics.avgEnergy = energySum / this.agents.length;
     this.metrics.avgSatiety = satietySum / this.agents.length;
+    this.metrics.predatorCount = this.predators.length;
+    this.metrics.herbivoreCount = this.herbivores.length;
+    this.metrics.structureCount = this.world.structures.length;
   }
 
   setThinkEvery(value) {
@@ -342,6 +702,28 @@ export class Simulation {
         inventory: agent.inventory,
         useFSM: agent.useFSM,
       })),
+      fauna: {
+        predators: this.predators.map((predator) => ({
+          id: predator.id,
+          x: predator.x,
+          y: predator.y,
+          hunger: predator.hunger,
+        })),
+        herbivores: this.herbivores.map((herbivore) => ({
+          id: herbivore.id,
+          x: herbivore.x,
+          y: herbivore.y,
+          hunger: herbivore.hunger,
+        })),
+      },
+      structures: this.world.structures.map((structure) => ({
+        id: structure.id,
+        x: structure.x,
+        y: structure.y,
+        type: structure.type,
+        durability: structure.durability,
+        builtBy: structure.builtBy,
+      })),
       comms: this.communications.recent(10),
       storyteller: {
         lastEvent: this.metrics.lastEvent,
@@ -351,6 +733,9 @@ export class Simulation {
         avgEnergy: this.metrics.avgEnergy,
         avgSatiety: this.metrics.avgSatiety,
         trainingTime: this.metrics.trainingTime,
+        predatorCount: this.metrics.predatorCount,
+        herbivoreCount: this.metrics.herbivoreCount,
+        structureCount: this.metrics.structureCount,
       },
     };
   }

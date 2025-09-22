@@ -197,6 +197,8 @@ const latestState = {
   metrics: {},
   config: BASE_CONFIG,
   isRunning: false,
+  fauna: { predators: [], herbivores: [] },
+  structures: [],
 };
 
 const panel = new ControlPanel({
